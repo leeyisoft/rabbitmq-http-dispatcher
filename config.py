@@ -3,27 +3,17 @@
 
 
 RABBITMQ_CONFIG = {
-        "host": "localhost",
-        "username": "guest",
-        "password": "guest"
+        "host": "192.168.2.212",
+        "username": "admin",
+        "password": "123456"
 }
 
+queue_name='queue.push.sms'
 CONSUMERS = [
         {
             "exchange": "ACTION",
-            "queue": "ALL_ACTION",
-            "routing_key": "ACTION.*",
-            "http_method": "POST",
-            "http_url": "http://127.0.0.1:5000/api",
-        },
-        {
-            "exchange": "log",
-            "queue": "atest",
-            "routing_key": "*",
-            "host": "localhost",
-            "http_method": "POST",
-            "http_url": "http://127.0.0.1:5001/api/",
-        },
+            "queue": queue_name,
+        }
         ]
 
 

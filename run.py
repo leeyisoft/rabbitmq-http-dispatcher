@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # encoding: utf-8
 
 import os
@@ -31,7 +31,7 @@ class ConsumerHandler(object):
 
         self.consumer = Consumer(host, username, password)
         self.consumer.declare_exchange(exchange, durable=True)
-        self.consumer.declare_queue(queue, routing_key=routing_key, durable=True)
+        self.consumer.declare_queue(queue, durable=True)
 
         logging.getLogger("rabbit_consumer").info("pid[%s] Init consumer end...... " % os.getpid())
 
@@ -40,32 +40,35 @@ class ConsumerHandler(object):
         """
         回调方法
         """
-        print "RECEIVE MESSAGE: %s" % body
+        print("RECEIVE MESSAGE: %s" % body)
         params = {"message": body}
         try:
-            if self.http_method == 'GET':
-                r = requests.get(self.http_url, params=params, timeout=60)
-            elif self.http_method == 'POST':
-                r = requests.post(self.http_url, data=params, timeout=60)
-            else:
-                return
-        except Exception, e:
+            # if self.http_method == 'GET':
+            #     r = requests.get(self.http_url, params=params, timeout=60)
+            # elif self.http_method == 'POST':
+            #     r = requests.post(self.http_url, data=params, timeout=60)
+            # else:
+            #     return
+            logging.getLogger("rabbit_consumer").info("pid[%s] ok: receive - %s" % (os.getpid(), body) )
+        except Exception as e:
             # import traceback
             # traceback.print_exc()
             logging.getLogger("rabbit_consumer").error("pid[%s] ERROR: exception happend when callback - %s" % (os.getpid(), str(e)) )
         else:
-            if r.status_code == 200:
-                ch.basic_ack(delivery_tag=method.delivery_tag)
-            else:
-                logging.getLogger("rabbit_consumer").error("pid[%s] ERROR: http return error url[%s] message[%s]" % (os.getpid(), self.http_url, body))
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            # logging.getLogger("rabbit_consumer").error("pid[%s] ERROR: http return error url[%s] message[%s]" % (os.getpid(), self.http_url, body))
+            # if r.status_code == 200:
+                # ch.basic_ack(delivery_tag=method.delivery_tag)
+            # else:
+            #     logging.getLogger("rabbit_consumer").error("pid[%s] ERROR: http return error url[%s] message[%s]" % (os.getpid(), self.http_url, body))
 
     # def run(self):
         # """
         # """
         # try:
             # self.consumer.start_consuming(callback_func=self.callback)
-        # except Exception, e:
-            # print e
+        # except Exception as e:
+            # print( e)
             # import traceback
             # traceback.print_exc()
             # self.consumer.stop_consuming()
@@ -78,11 +81,10 @@ class ConsumerHandler(object):
         """
         while True:
             try:
-                if len(self.consumer.channel.consumer_tags) == 0:
-                    logging.getLogger("rabbit_consumer").info("pid[%s] No consumer running, start one " % os.getpid())
-                    self.consumer.start_consuming(callback_func=self.callback)
-                time.sleep(10)
-            except Exception, e:
+                logging.getLogger("rabbit_consumer").info("pid[%s] No consumer running, start one " % os.getpid())
+                self.consumer.start_consuming(callback_func=self.callback)
+                time.sleep(2)
+            except Exception as e:
                 logging.getLogger("rabbit_consumer").error("pid[%s] ERROR: exception happend when start - %s" % (os.getpid(), str(e)))
                 break
             finally:
@@ -108,7 +110,7 @@ def setup_consumer(kwargs):
     try:
         handler = ConsumerHandler(exchange, queue, host, username, password, routing_key, http_method, http_url)
         handler.run()
-    except Exception, e:
+    except Exception as e:
         logging.getLogger("rabbit_consumer").error("pid[%s] setup consumer exception: %s" % (os.getpid(), str(e)))
 
     logging.getLogger("rabbit_consumer").info("pid[%s] setup consumer end......" % os.getpid())
@@ -123,7 +125,7 @@ class ConsumerDispatcherDaemon(Daemon):
         杀
         """
         parent = psutil.Process(pid)
-        for child in parent.get_children(recursive=True):
+        for child in parent.children(recursive=True):
             child.kill()
 
         # if including_parent:
@@ -165,14 +167,14 @@ def _logger_init(logger_name, logger_path, logger_level):
 if __name__ == '__main__':
 
     if len(sys.argv) != 3:
-        print "ERROR: Wrong options for  run.py [start|stop|restart] DATA_PATH"
+        print( "ERROR: Wrong options for  run.py [start|stop|restart] DATA_PATH")
         sys.exit(1)
 
     cmd = sys.argv[1]
     data_dir = sys.argv[2]
 
     if not os.path.exists(data_dir):
-        print "ERROR: pid_idr [%s] not exists!" % data_dir
+        print( "ERROR: pid_idr [%s] not exists!" % data_dir)
         sys.exit(1)
 
     pid_path = os.path.join(data_dir, 'consumer_dispatcher.pid')
@@ -188,7 +190,7 @@ if __name__ == '__main__':
     elif cmd == 'restart':
         cdd.restart()
     else:
-        print "run.py [start|stop|restart] DATA_PATH"
+        print( "run.py [start|stop|restart] DATA_PATH")
         sys.exit(1)
 
 

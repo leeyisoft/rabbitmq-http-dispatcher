@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# encoding: utf-8
+
 '''
 ***
 Modified generic daemon class
@@ -37,7 +40,7 @@ class Daemon(object):
     """
     def __init__(self, pidfile, stdin=os.devnull,
                  stdout=os.devnull, stderr=os.devnull,
-                 home_dir='.', umask=022, verbose=1):
+                 home_dir='.', umask=22, verbose=1):
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = stderr
@@ -58,7 +61,7 @@ class Daemon(object):
             if pid > 0:
                 # Exit first parent
                 sys.exit(0)
-        except OSError, e:
+        except OSError as e:
             sys.stderr.write(
                 "fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
             sys.exit(1)
@@ -74,7 +77,7 @@ class Daemon(object):
             if pid > 0:
                 # Exit from second parent
                 sys.exit(0)
-        except OSError, e:
+        except OSError as e:
             sys.stderr.write(
                 "fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
             sys.exit(1)
@@ -83,10 +86,10 @@ class Daemon(object):
             # Redirect standard file descriptors
             sys.stdout.flush()
             sys.stderr.flush()
-            si = file(self.stdin, 'r')
-            so = file(self.stdout, 'a+')
+            si = open(self.stdin, 'r')
+            so = open(self.stdout, 'a+')
             if self.stderr:
-                se = file(self.stderr, 'a+', 0)
+                se = open(self.stderr, 'a+', 0)
             else:
                 se = so
             os.dup2(si.fileno(), sys.stdin.fileno())
@@ -99,13 +102,13 @@ class Daemon(object):
             signal.signal(signal.SIGINT, sigtermhandler)
 
         if self.verbose >= 1:
-            print "Started"
+            print("Started")
 
         # Write pidfile
         atexit.register(
             self.delpid)  # Make sure pid file is removed if we quit
         pid = str(os.getpid())
-        file(self.pidfile, 'w+').write("%s\n" % pid)
+        open(self.pidfile, 'w+').write("%s\n" % pid)
 
     def delpid(self):
         os.remove(self.pidfile)
@@ -116,12 +119,12 @@ class Daemon(object):
         """
 
         if self.verbose >= 1:
-            print "Starting..."
+            print("Starting...")
 
         # Check for a pidfile to see if the daemon already runs
         try:
-            pf = file(self.pidfile, 'r')
-            pid = int(pf.read().strip())
+            pf = open(self.pidfile, 'r+')
+            pid = pf.read().strip()
             pf.close()
         except IOError:
             pid = None
@@ -143,7 +146,7 @@ class Daemon(object):
         """
 
         if self.verbose >= 1:
-            print "Stopping..."
+            print("Stopping...")
 
         # Get the pid from the pidfile
         pid = self.get_pid()
@@ -161,6 +164,7 @@ class Daemon(object):
 
         # Try killing the daemon process
         try:
+            print("pid %s" % pid)
             self.before_stop(pid=pid)
 
             i = 0
@@ -170,17 +174,17 @@ class Daemon(object):
                 i = i + 1
                 if i % 10 == 0:
                     os.kill(pid, signal.SIGHUP)
-        except OSError, err:
+        except OSError as err:
             err = str(err)
             if err.find("No such process") > 0:
                 if os.path.exists(self.pidfile):
                     os.remove(self.pidfile)
             else:
-                print str(err)
+                print(str(err))
                 sys.exit(1)
 
         if self.verbose >= 1:
-            print "Stopped"
+            print("Stopped")
 
     def restart(self):
         """
@@ -191,7 +195,7 @@ class Daemon(object):
 
     def get_pid(self):
         try:
-            pf = file(self.pidfile, 'r')
+            pf = open(self.pidfile, 'r')
             pid = int(pf.read().strip())
             pf.close()
         except IOError:
@@ -204,11 +208,11 @@ class Daemon(object):
         pid = self.get_pid()
 
         if pid == None:
-            print 'Process is stopped'
+            print('Process is stopped')
         elif os.path.exists('/proc/%d' % pid):
-            print 'Process (pid %d) is running...' % pid
+            print('Process (pid %d) is running...' % pid)
         else:
-            print 'Process (pid %d) is killed' % pid
+            print('Process (pid %d) is killed' % pid)
 
         return pid and os.path.exists('/proc/%d' % pid)
 
