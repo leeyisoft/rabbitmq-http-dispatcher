@@ -8,7 +8,7 @@ RABBITMQ_CONFIG = {
         "password": "123456"
 }
 
-queue_name='queue.push.sms'
+queue_name = 'queue.push.sms'
 CONSUMERS = [
         {
             "exchange": "ACTION",

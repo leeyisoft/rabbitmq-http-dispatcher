@@ -5,12 +5,9 @@
 ***
 Modified generic daemon class
 ***
-
 Author:         http://www.jejik.com/articles/2007/02/
                         a_simple_unix_linux_daemon_in_python/www.boxedice.com
-
 License:        http://creativecommons.org/licenses/by-sa/3.0/
-
 Changes:        23rd Jan 2009 (David Mytton <david@boxedice.com>)
                 - Replaced hard coded '/dev/null in __init__ with os.devnull
                 - Added OS check to conditionally remove code that doesn't
@@ -25,7 +22,9 @@ Changes:        23rd Jan 2009 (David Mytton <david@boxedice.com>)
 '''
 
 # Core modules
+from __future__ import print_function
 import atexit
+import errno
 import os
 import sys
 import time
@@ -35,12 +34,12 @@ import signal
 class Daemon(object):
     """
     A generic daemon class.
-
     Usage: subclass the Daemon class and override the run() method
     """
     def __init__(self, pidfile, stdin=os.devnull,
                  stdout=os.devnull, stderr=os.devnull,
-                 home_dir='.', umask=22, verbose=1):
+                 home_dir='.', umask=0o22, verbose=1,
+                 use_gevent=False, use_eventlet=False):
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = stderr
@@ -49,6 +48,12 @@ class Daemon(object):
         self.verbose = verbose
         self.umask = umask
         self.daemon_alive = True
+        self.use_gevent = use_gevent
+        self.use_eventlet = use_eventlet
+
+    def log(self, *args):
+        if self.verbose >= 1:
+            print(*args)
 
     def daemonize(self):
         """
@@ -56,6 +61,9 @@ class Daemon(object):
         Programming in the UNIX Environment" for details (ISBN 0201563177)
         http://www.erlenstar.demon.co.uk/unix/faq_2.html#SEC16
         """
+        if self.use_eventlet:
+            import eventlet.tpool
+            eventlet.tpool.killall()
         try:
             pid = os.fork()
             if pid > 0:
@@ -89,7 +97,11 @@ class Daemon(object):
             si = open(self.stdin, 'r')
             so = open(self.stdout, 'a+')
             if self.stderr:
-                se = open(self.stderr, 'a+', 0)
+                try:
+                    se = open(self.stderr, 'a+', 0)
+                except ValueError:
+                    # Python 3 can't have unbuffered text I/O
+                    se = open(self.stderr, 'a+', 1)
             else:
                 se = so
             os.dup2(si.fileno(), sys.stdin.fileno())
@@ -98,11 +110,18 @@ class Daemon(object):
 
         def sigtermhandler(signum, frame):
             self.daemon_alive = False
+            sys.exit()
+
+        if self.use_gevent:
+            import gevent
+            gevent.reinit()
+            gevent.signal(signal.SIGTERM, sigtermhandler, signal.SIGTERM, None)
+            gevent.signal(signal.SIGINT, sigtermhandler, signal.SIGINT, None)
+        else:
             signal.signal(signal.SIGTERM, sigtermhandler)
             signal.signal(signal.SIGINT, sigtermhandler)
 
-        if self.verbose >= 1:
-            print("Started")
+        self.log("Started")
 
         # Write pidfile
         atexit.register(
@@ -111,20 +130,28 @@ class Daemon(object):
         open(self.pidfile, 'w+').write("%s\n" % pid)
 
     def delpid(self):
-        os.remove(self.pidfile)
+        try:
+            # the process may fork itself again
+            pid = int(open(self.pidfile, 'r').read().strip())
+            if pid == os.getpid():
+                os.remove(self.pidfile)
+        except OSError as e:
+            if e.errno == errno.ENOENT:
+                pass
+            else:
+                raise
 
     def start(self, *args, **kwargs):
         """
         Start the daemon
         """
 
-        if self.verbose >= 1:
-            print("Starting...")
+        self.log("Starting...")
 
         # Check for a pidfile to see if the daemon already runs
         try:
-            pf = open(self.pidfile, 'r+')
-            pid = pf.read().strip()
+            pf = open(self.pidfile, 'r')
+            pid = int(pf.read().strip())
             pf.close()
         except IOError:
             pid = None
@@ -146,7 +173,7 @@ class Daemon(object):
         """
 
         if self.verbose >= 1:
-            print("Stopping...")
+            self.log("Stopping...")
 
         # Get the pid from the pidfile
         pid = self.get_pid()
@@ -164,9 +191,6 @@ class Daemon(object):
 
         # Try killing the daemon process
         try:
-            print("pid %s" % pid)
-            self.before_stop(pid=pid)
-
             i = 0
             while 1:
                 os.kill(pid, signal.SIGTERM)
@@ -175,16 +199,14 @@ class Daemon(object):
                 if i % 10 == 0:
                     os.kill(pid, signal.SIGHUP)
         except OSError as err:
-            err = str(err)
-            if err.find("No such process") > 0:
+            if err.errno == errno.ESRCH:
                 if os.path.exists(self.pidfile):
                     os.remove(self.pidfile)
             else:
                 print(str(err))
                 sys.exit(1)
 
-        if self.verbose >= 1:
-            print("Stopped")
+        self.log("Stopped")
 
     def restart(self):
         """
@@ -207,14 +229,15 @@ class Daemon(object):
     def is_running(self):
         pid = self.get_pid()
 
-        if pid == None:
-            print('Process is stopped')
+        if pid is None:
+            self.log('Process is stopped')
+            return False
         elif os.path.exists('/proc/%d' % pid):
-            print('Process (pid %d) is running...' % pid)
+            self.log('Process (pid %d) is running...' % pid)
+            return True
         else:
-            print('Process (pid %d) is killed' % pid)
-
-        return pid and os.path.exists('/proc/%d' % pid)
+            self.log('Process (pid %d) is killed' % pid)
+            return False
 
     def run(self):
         """
@@ -223,13 +246,3 @@ class Daemon(object):
         daemonized by start() or restart().
         """
         raise NotImplementedError
-
-    def before_stop(self, *args, **kwargs):
-        """
-        Do some clean before stop
-        If you need to do something before stop main
-        You should override this method when you subclass Daemon.
-        It will be called before stop
-        """
-        raise NotImplementedError
-
