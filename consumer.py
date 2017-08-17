@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # encoding: utf-8
+
 """
 消费者
 
@@ -30,25 +31,29 @@ logger_name = 'rabbit_consumer'
 
 
 class Consumer(object):
+    connection = None
+    channel = None
+
     """
     消费者, 从消息队列中取出, 处理
     """
-    def __init__(self, host, username="", password=""):
+    def __init__(self, rabbitmq_config):
         """
         """
-        credentials = pika.PlainCredentials(username, password)
-        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=host, credentials=credentials))
-        self.channel = self.connection.channel()
+        self.connection = pika.BlockingConnection(pika.URLParameters(rabbitmq_config))
+        # logging.getLogger(logger_name).info("pid[%s] consumer init connection: %s" % (os.getpid(), type(self.connection)))
 
+        self.channel = self.connection.channel()
         self.exchange_name = None
         self.queue_name = None
 
     def start_consuming(self, callback_func, no_ack=False):
         """
         """
-        self.channel.basic_consume(callback_func,
-                            queue=self.queue_name,
-                            no_ack=no_ack)
+        self.channel.basic_consume(callback_func
+            , queue=self.queue_name
+            , no_ack=no_ack
+        )
         self.channel.start_consuming()
 
     def stop_consuming(self):
@@ -63,13 +68,13 @@ class Consumer(object):
         logging.getLogger(logger_name).info("pid[%s] clone consumer begin......" % os.getpid())
         self.connection.close()
 
-    def declare_exchange(self, exchange_name, durable=True):
+    def declare_exchange(self, exchange_type, exchange_name, durable=True):
         """
         定义一个exchange
         """
         # self.channel.exchange_declare(exchange=exchange, type='fanout')
         self.exchange_name = exchange_name
-        self.channel.exchange_declare(exchange=exchange_name, type='topic', durable=durable)
+        self.channel.exchange_declare(exchange=exchange_name, type=exchange_type, durable=durable)
 
     def declare_queue(self, queue_name, routing_key="*", durable=True):
         """
@@ -91,15 +96,23 @@ class ConsumerHandler(object):
     """
     消费者处理hander
     """
-    def __init__(self, exchange, queue, host, username, password):
+    def __init__(self, kwargs):
         """
         初始化
         """
+        exchange_type = kwargs.get('exchange_type')
+        exchange = kwargs.get('exchange')
+        queue_name = kwargs.get('queue_name')
+        routing_key = kwargs.get('routing_key', '*')
+        durable = kwargs.get('durable', True)
+
+        rabbitmq_config = kwargs.get('rabbitmq_config')
+
         logging.getLogger(logger_name).info("pid[%s] Init consumer begin......" % os.getpid())
 
-        self.consumer = Consumer(host, username, password)
-        self.consumer.declare_exchange(exchange, durable=True)
-        self.consumer.declare_queue(queue, durable=True)
+        self.consumer = Consumer(rabbitmq_config)
+        self.consumer.declare_exchange(exchange_type, exchange, durable)
+        self.consumer.declare_queue(queue_name, routing_key, durable)
 
         logging.getLogger(logger_name).info("pid[%s] Init consumer end...... " % os.getpid())
 
@@ -112,7 +125,7 @@ class ConsumerHandler(object):
                 logging.getLogger(logger_name).info("pid[%s] Now consumer running, start one " % os.getpid())
                 # logging.getLogger(logger_name).info(callback_func)
                 self.consumer.start_consuming(callback_func=callback_func)
-                time.sleep(2)
+                time.sleep(4)
             except Exception as e:
                 logging.getLogger(logger_name).error("pid[%s] ERROR: exception happend when start - %s" % (os.getpid(), str(e)))
                 break
@@ -127,48 +140,49 @@ class ConsumerDispatcherDaemon(Daemon):
         初始化一个consumer, 并开始处理消息
 
         """
-        exchange = kwargs.get('exchange')
-        queue = kwargs.get('queue')
-        host = kwargs.get('host')
-        username = kwargs.get('username')
-        password = kwargs.get('password')
 
         logging.getLogger(logger_name).info("pid[%s] setup consumer begin......" % os.getpid())
         try:
-            handler = ConsumerHandler(exchange, queue, host, username, password)
+            handler = ConsumerHandler(kwargs)
             handler.run(callback_func)
         except Exception as e:
-            logging.getLogger(logger_name).error("pid[%s] setup consumer exception: %s" % (os.getpid(), str(e)))
+            logging.getLogger(logger_name).error(
+                "pid[%s] setup consumer exception: %s"
+                % (os.getpid(), str(e))
+            )
 
         logging.getLogger(logger_name).info("pid[%s] setup consumer end......" % os.getpid())
 
-    def run(self, CONSUMERS, RABBITMQ_CONFIG, callback_func):
+    def run(self, consumers, rabbitmq_config, callback_func):
         """
         运行
         """
         logging.getLogger(logger_name).info("Begin to start processor")
 
-        ps = []
-        for c in CONSUMERS:
-            c.update(RABBITMQ_CONFIG)
+        ps_list = []
+        for item in consumers:
+            item.update({'rabbitmq_config': rabbitmq_config})
 
-            logging.getLogger(logger_name).info("init by config: %s" % str(c))
+            logging.getLogger(logger_name).info("init by config: %s" % str(item))
 
-            p = multiprocessing.Process(target=self.setup_consumer, args=(c, callback_func,))
-            p.daemon = True
-            p.start()
-            ps.append(p)
+            process = multiprocessing.Process(
+                target=self.setup_consumer,
+                args=(item, callback_func,)
+            )
+            process.daemon = True
+            process.start()
+            ps_list.append(process)
 
-        for p in ps:
-            p.join()
+        for process in ps_list:
+            process.join()
 
 
-    def restart(self, CONSUMERS, RABBITMQ_CONFIG, callback_func):
+    def restart(self, consumers, rabbitmq_config, callback_func):
         """
         Restart the daemon
         """
         self.stop()
-        self.start(CONSUMERS, RABBITMQ_CONFIG, callback_func)
+        self.start(consumers, rabbitmq_config, callback_func)
 
 
 # TODO:问题, 如何进行流量控制

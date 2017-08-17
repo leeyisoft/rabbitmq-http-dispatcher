@@ -12,7 +12,7 @@ from consumer import ConsumerHandler
 from consumer import ConsumerDispatcherDaemon
 
 from config import CONSUMERS
-from config import RABBITMQ_CONFIG
+from config import rabbitmq_config
 
 
 # logger_name 在 consumer.py里面硬编码了，如果要调试consumer的启动过程，请设置为 rabbit_consumer
@@ -79,11 +79,11 @@ if __name__ == '__main__':
 
     cdd = ConsumerDispatcherDaemon(pid_path)
     if cmd == "start":
-        cdd.start(CONSUMERS, RABBITMQ_CONFIG, callback_func)
+        cdd.start(CONSUMERS, rabbitmq_config, callback_func)
     elif cmd == 'stop':
         cdd.stop()
     elif cmd == 'restart':
-        cdd.restart(CONSUMERS, RABBITMQ_CONFIG, callback_func)
+        cdd.restart(CONSUMERS, rabbitmq_config, callback_func)
     else:
         print( "run.py [start|stop|restart] DATA_PATH")
         sys.exit(1)
