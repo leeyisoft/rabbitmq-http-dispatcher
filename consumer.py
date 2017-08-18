@@ -17,8 +17,8 @@ https://docs.python.org/2/library/multiprocessing.html daemon
 import pika
 import logging
 import os
-import multiprocessing
-import psutil
+
+from multiprocessing import Pool
 
 try:
     from .daemon import Daemon
@@ -26,9 +26,6 @@ except Exception as e:
     from daemon import Daemon
 
 logger_name = 'rabbit_consumer'
-
-# TODO: 线程启动时, 作为deamon, 一个consumer启动一个进程
-
 
 class Consumer(object):
     connection = None
@@ -41,8 +38,6 @@ class Consumer(object):
         """
         """
         self.connection = pika.BlockingConnection(pika.URLParameters(rabbitmq_config))
-        # logging.getLogger(logger_name).info("pid[%s] consumer init connection: %s" % (os.getpid(), type(self.connection)))
-
         self.channel = self.connection.channel()
         self.exchange_name = None
         self.queue_name = None
@@ -72,25 +67,22 @@ class Consumer(object):
         """
         定义一个exchange
         """
-        # self.channel.exchange_declare(exchange=exchange, type='fanout')
         self.exchange_name = exchange_name
-        self.channel.exchange_declare(exchange=exchange_name, type=exchange_type, durable=durable)
+        self.channel.exchange_declare(exchange=exchange_name
+            , type=exchange_type
+            , durable=durable
+        )
 
     def declare_queue(self, queue_name, routing_key="*", durable=True):
         """
         定义一个queue
         """
-        # result = self.channel.queue_declare(exclusive=True)
-        # queue_name = result.method.queue
-        # print "TRACK ================= queue_name", queue_name
-        # self.channel.queue_bind(exchange=exchange, queue="test", routing_key="a")
-        # self.channel.basic_consume(callback_func,
-                            # queue=queue_name,
-                            # no_ack=True)
-
         self.queue_name = queue_name
         self.channel.queue_declare(queue=queue_name, durable=durable)
-        self.channel.queue_bind(exchange=self.exchange_name, queue=queue_name, routing_key=routing_key)
+        self.channel.queue_bind(exchange=self.exchange_name
+            , queue=queue_name
+            , routing_key=routing_key
+        )
 
 class ConsumerHandler(object):
     """
@@ -108,13 +100,18 @@ class ConsumerHandler(object):
 
         rabbitmq_config = kwargs.get('rabbitmq_config')
 
-        logging.getLogger(logger_name).info("pid[%s] Init consumer begin......" % os.getpid())
+        logging.getLogger(logger_name).info(
+            "pid[%s] Init consumer begin......" % os.getpid()
+        )
 
         self.consumer = Consumer(rabbitmq_config)
         self.consumer.declare_exchange(exchange_type, exchange, durable)
         self.consumer.declare_queue(queue_name, routing_key, durable)
 
-        logging.getLogger(logger_name).info("pid[%s] Init consumer end...... " % os.getpid())
+        logging.getLogger(logger_name).info(
+            "pid[%s] Init consumer end...... "
+            % os.getpid()
+        )
 
     def run(self, callback_func):
         """
@@ -122,12 +119,18 @@ class ConsumerHandler(object):
         """
         while True:
             try:
-                logging.getLogger(logger_name).info("pid[%s] Now consumer running, start one " % os.getpid())
+                logging.getLogger(logger_name).info(
+                    "pid[%s] Now consumer running, start one "
+                    % os.getpid()
+                )
                 # logging.getLogger(logger_name).info(callback_func)
                 self.consumer.start_consuming(callback_func=callback_func)
                 time.sleep(4)
             except Exception as e:
-                logging.getLogger(logger_name).error("pid[%s] ERROR: exception happend when start - %s" % (os.getpid(), str(e)))
+                logging.getLogger(logger_name).error(
+                    "pid[%s] ERROR: exception happend when start - %s"
+                    % (os.getpid(), str(e))
+                )
                 break
             finally:
                 self.consumer.close()
@@ -145,37 +148,27 @@ class ConsumerDispatcherDaemon(Daemon):
         try:
             handler = ConsumerHandler(kwargs)
             handler.run(callback_func)
+            # logging.getLogger(logger_name).info("pid[%s] run kwargs: %s" % (os.getpid(), kwargs))
         except Exception as e:
             logging.getLogger(logger_name).error(
                 "pid[%s] setup consumer exception: %s"
                 % (os.getpid(), str(e))
             )
 
-        logging.getLogger(logger_name).info("pid[%s] setup consumer end......" % os.getpid())
+        logging.getLogger(logger_name).info("pid[%s] setup consumer end......\n" % os.getpid())
 
     def run(self, consumers, rabbitmq_config, callback_func):
         """
-        运行
+        对Pool对象调用join()方法会等待所有子进程执行完毕，调用join()之前必须先调用close()，调用close()之后就不能继续添加新的Process了。
         """
-        logging.getLogger(logger_name).info("Begin to start processor")
-
-        ps_list = []
+        p = Pool(len(consumers))
+        # logging.getLogger(logger_name).info("pid[%s] run consumers: %s" % (os.getpid(), consumers))
         for item in consumers:
             item.update({'rabbitmq_config': rabbitmq_config})
+            p.apply_async(self.setup_consumer, args=(item, callback_func,))
 
-            logging.getLogger(logger_name).info("init by config: %s" % str(item))
-
-            process = multiprocessing.Process(
-                target=self.setup_consumer,
-                args=(item, callback_func,)
-            )
-            process.daemon = True
-            process.start()
-            ps_list.append(process)
-
-        for process in ps_list:
-            process.join()
-
+        p.close()
+        p.join()
 
     def restart(self, consumers, rabbitmq_config, callback_func):
         """
