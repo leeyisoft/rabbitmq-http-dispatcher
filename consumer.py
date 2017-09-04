@@ -69,7 +69,7 @@ class Consumer(object):
         """
         self.exchange_name = exchange_name
         self.channel.exchange_declare(exchange=exchange_name
-            , type=exchange_type
+            , exchange_type=exchange_type
             , durable=durable
         )
 
