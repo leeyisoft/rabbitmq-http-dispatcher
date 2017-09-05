@@ -37,6 +37,7 @@ class Consumer(object):
     def __init__(self, rabbitmq_config):
         """
         """
+        # logging.getLogger(logger_name).info('Consumer/__init__/1 %s' % rabbitmq_config)
         self.connection = pika.BlockingConnection(pika.URLParameters(rabbitmq_config))
         self.channel = self.connection.channel()
         self.exchange_name = None
@@ -45,6 +46,8 @@ class Consumer(object):
     def start_consuming(self, callback_func, no_ack=False):
         """
         """
+        # logging.getLogger(logger_name).info('Consumer/start_consuming/3 self.queue_name :%s' % self.queue_name)
+        # logging.getLogger(logger_name).info('Consumer/start_consuming/3 callback_func :%s no_ack: %s' % (callback_func, no_ack))
         self.channel.basic_consume(callback_func
             , queue=self.queue_name
             , no_ack=no_ack
@@ -135,8 +138,7 @@ class ConsumerHandler(object):
             finally:
                 self.consumer.close()
 
-
-class ConsumerDispatcherDaemon(Daemon):
+class ConsumerDispatcher():
 
     def setup_consumer(self, kwargs, callback_func):
         """
@@ -157,7 +159,7 @@ class ConsumerDispatcherDaemon(Daemon):
 
         logging.getLogger(logger_name).info("pid[%s] setup consumer end......\n" % os.getpid())
 
-    def run(self, consumers, rabbitmq_config, callback_func):
+    def start(self, consumers, rabbitmq_config, callback_func):
         """
         对Pool对象调用join()方法会等待所有子进程执行完毕，调用join()之前必须先调用close()，调用close()之后就不能继续添加新的Process了。
         """
@@ -170,12 +172,17 @@ class ConsumerDispatcherDaemon(Daemon):
         p.close()
         p.join()
 
-    def restart(self, consumers, rabbitmq_config, callback_func):
+class ConsumerDispatcherDaemon(Daemon):
+
+    def run(self, dispatcher, consumers, rabbitmq_config, callback_func):
+        dispatcher.start(consumers, rabbitmq_config, callback_func)
+
+    def restart(self, dispatcher, consumers, rabbitmq_config, callback_func):
         """
         Restart the daemon
         """
         self.stop()
-        self.start(consumers, rabbitmq_config, callback_func)
+        self.start(dispatcher, consumers, rabbitmq_config, callback_func)
 
 
 # TODO:问题, 如何进行流量控制

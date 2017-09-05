@@ -77,13 +77,14 @@ if __name__ == '__main__':
 
     _logger_init(logger_name, log_path, logging.INFO)
 
+    dispatcher = ConsumerDispatcher()
     cdd = ConsumerDispatcherDaemon(pid_path)
     if cmd == "start":
-        cdd.start(CONSUMERS, rabbitmq_config, callback_func)
+        cdd.start(dispatcher, CONSUMERS, rabbitmq_config, callback_func)
     elif cmd == 'stop':
         cdd.stop()
     elif cmd == 'restart':
-        cdd.restart(CONSUMERS, rabbitmq_config, callback_func)
+        cdd.restart(dispatcher, CONSUMERS, rabbitmq_config, callback_func)
     else:
         print( "run.py [start|stop|restart] DATA_PATH")
         sys.exit(1)
