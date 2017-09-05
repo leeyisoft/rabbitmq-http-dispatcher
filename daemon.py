@@ -110,7 +110,7 @@ class Daemon(object):
 
         def sigtermhandler(signum, frame):
             self.daemon_alive = False
-            sys.exit()
+            sys.exit(0)
 
         if self.use_gevent:
             import gevent
@@ -123,11 +123,11 @@ class Daemon(object):
 
         self.log("Started")
 
-        # Write pidfile
-        atexit.register(
-            self.delpid)  # Make sure pid file is removed if we quit
+        atexit.register(self.delpid)  # Make sure pid file is removed if we quit
         pid = str(os.getpid())
-        open(self.pidfile, 'w+').write("%s\n" % pid)
+        # Write pidfile
+        with open(self.pidfile, 'w+') as f:
+            f.write("%s\n" % pid)
 
     def delpid(self):
         try:
