@@ -66,7 +66,7 @@ class Consumer(object):
         logging.getLogger(logger_name).info("pid[%s] clone consumer begin......" % os.getpid())
         self.connection.close()
 
-    def declare_exchange(self, exchange_type, exchange_name, durable=True):
+    def declare_exchange(self, exchange_type, exchange_name, durable=True, auto_delete=False):
         """
         定义一个exchange
         """
@@ -74,14 +74,15 @@ class Consumer(object):
         self.channel.exchange_declare(exchange=exchange_name
             , exchange_type=exchange_type
             , durable=durable
+            , auto_delete=auto_delete
         )
 
-    def declare_queue(self, queue_name, routing_key="*", durable=True):
+    def declare_queue(self, queue_name, routing_key="*", durable=True, auto_delete=False):
         """
         定义一个queue
         """
         self.queue_name = queue_name
-        self.channel.queue_declare(queue=queue_name, durable=durable)
+        self.channel.queue_declare(queue=queue_name, durable=durable, auto_delete=auto_delete)
         self.channel.queue_bind(exchange=self.exchange_name
             , queue=queue_name
             , routing_key=routing_key
@@ -100,6 +101,7 @@ class ConsumerHandler(object):
         queue_name = kwargs.get('queue_name')
         routing_key = kwargs.get('routing_key', '*')
         durable = kwargs.get('durable', True)
+        auto_delete = kwargs.get('auto_delete', False)
 
         rabbitmq_config = kwargs.get('rabbitmq_config')
 
@@ -108,8 +110,8 @@ class ConsumerHandler(object):
         )
 
         self.consumer = Consumer(rabbitmq_config)
-        self.consumer.declare_exchange(exchange_type, exchange, durable)
-        self.consumer.declare_queue(queue_name, routing_key, durable)
+        self.consumer.declare_exchange(exchange_type, exchange, durable, auto_delete)
+        self.consumer.declare_queue(queue_name, routing_key, durable, auto_delete)
 
         logging.getLogger(logger_name).info(
             "pid[%s] Init consumer end...... "
