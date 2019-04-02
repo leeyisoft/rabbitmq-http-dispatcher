@@ -43,14 +43,14 @@ class Consumer(object):
         self.exchange_name = None
         self.queue_name = None
 
-    def start_consuming(self, callback_func, no_ack=False):
+    def start_consuming(self, callback_func, auto_ack=False):
         """
         """
         # logging.getLogger(logger_name).info('Consumer/start_consuming/3 self.queue_name :%s' % self.queue_name)
-        # logging.getLogger(logger_name).info('Consumer/start_consuming/3 callback_func :%s no_ack: %s' % (callback_func, no_ack))
-        self.channel.basic_consume(callback_func
+        # logging.getLogger(logger_name).info('Consumer/start_consuming/3 callback_func :%s auto_ack: %s' % (callback_func, auto_ack))
+        self.channel.basic_consume(on_message_callback=callback_func
             , queue=self.queue_name
-            , no_ack=no_ack
+            , auto_ack=auto_ack
         )
         self.channel.start_consuming()
 
@@ -202,13 +202,13 @@ class ConsumerDispatcherDaemon(Daemon):
     # print body
     # ch.basic_ack(delivery_tag = method.delivery_tag)
 
-# channel.basic_consume(callback, queue='A', no_ack=False)
+# channel.basic_consume(on_message_callback=callback, queue='A', auto_ack=False)
 # channel.start_consuming()
 
 # TODO: 提取时进行消息确认
 # connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
 # channel = connection.channel()
-# r = channel.basic_get(queue='A', no_ack=False) #0
+# r = channel.basic_get(queue='A', auto_ack=False) #0
 # print r[-1], r[0].delivery_tag
 # #channel.basic_ack(delivery_tag=r[0].delivery_tag)
 # channel.basic_reject(delivery_tag=r[0].delivery_tag)
@@ -216,9 +216,9 @@ class ConsumerDispatcherDaemon(Daemon):
 # 一次确认多条
 # connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
 # channel = connection.channel()
-# r = channel.basic_get(queue='A', no_ack=False) #0
-# r = channel.basic_get(queue='A', no_ack=False) #1
-# r = channel.basic_get(queue='A', no_ack=False) #2
+# r = channel.basic_get(queue='A', auto_ack=False) #0
+# r = channel.basic_get(queue='A', auto_ack=False) #1
+# r = channel.basic_get(queue='A', auto_ack=False) #2
 # channel.basic_nack(delivery_tag=r[0].delivery_tag, multiple=True)
 
 # import requests
@@ -255,8 +255,8 @@ class ConsumerDispatcherDaemon(Daemon):
     # con = Consumer("localhost")
 
     # con.declare_exchange(exchange_name, durable=True)
-    # con.declare_queue(exchange_name, callback, queue_name, routing_key='ACTION.#', durable=True, no_ack=False)
-    # # con.declare_queue(exchange_name, callback, queue_name, routing_key='*', durable=True, no_ack=False)
+    # con.declare_queue(exchange_name, callback, queue_name, routing_key='ACTION.#', durable=True, auto_ack=False)
+    # # con.declare_queue(exchange_name, callback, queue_name, routing_key='*', durable=True, auto_ack=False)
 
     # con.start_consuming()
 
