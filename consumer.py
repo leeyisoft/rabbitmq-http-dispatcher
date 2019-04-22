@@ -13,12 +13,13 @@ https://github.com/serverdensity/python-daemon
 http://slaytanic.blog.51cto.com/2057708/742049
 https://docs.python.org/2/library/multiprocessing.html daemon
 """
-
+import os
+import time
 import pika
 import logging
-import os
 
 from multiprocessing import Pool
+
 
 try:
     from .daemon import Daemon

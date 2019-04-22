@@ -1,8 +1,9 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 import pika
 import json
 import traceback
+
 
 class Publisher:
     connection = None
@@ -14,27 +15,25 @@ class Publisher:
         self.exchange_name = None
         self.queue_name = None
 
-    def publish_fanout(self, message, option):
-        option['exchange_type'] = 'fanout'
-        return self._push(message, option)
-
-    def _push(self, message, option):
+    def push(self, message, option):
         message = message if type(message)==str else json.dumps(message)
 
         exchange_type = option.get('exchange_type', 'fanout')
         exchange = option.get('exchange', 'push_msg')
         routing_key = option.get('routing_key', 'push_msg')
-        queue_name = option.get('queue_name', '')
+        queue_name = option.get('queue_name', None)
         durable = option.get('durable', True)
         auto_delete = option.get('auto_delete', False)
         try:
             self._declare_exchange(exchange_type, exchange, durable, auto_delete)
-            self._declare_queue(queue_name, routing_key, durable, auto_delete)
+            # 如果接受到消息的Exchange没有与任何Queue绑定，则消息会被抛弃。
+            if queue_name is not None:
+                self._declare_queue(queue_name, routing_key, durable, auto_delete)
             self.channel.basic_publish(exchange=exchange,
                                       routing_key=routing_key,
                                       body=message)
             # print(" [x] Sent message %r" % message)
-            return ('ok', 'success')
+            return ('ok', 'success', [])
         except Exception as e:
             print(repr(e))
             traceback.print_exc()
@@ -78,14 +77,14 @@ def _main():
     # msg = "abcdefg"
     msg = {'dd':333}
     option = {}
-    option['exchange'] = 'jjbex.push_msg'
-    option['routing_key'] = 'jjbrtk.push_msg'
-    option['queue_name'] = 'jjbq.push_msg'
+    option['exchange'] = 'async_ex.push_msg'
+    option['routing_key'] = 'async_rtk.push_msg'
+    option['queue_name'] = 'async_q.push_msg'
     option['durable'] = True
     option['auto_delete'] = False
-    res = pusher.publish_fanout(msg, option)
+    option['exchange_type'] = 'topic'
+    res = pusher.push(msg, option)
     print(res)
-
 
 if __name__ == '__main__':
     _main()
