@@ -18,6 +18,7 @@ import time
 import pika
 import logging
 
+import traceback
 from multiprocessing import Pool
 
 
@@ -148,17 +149,15 @@ class ConsumerDispatcher():
         初始化一个consumer, 并开始处理消息
 
         """
-
         logging.getLogger(logger_name).info("pid[%s] setup consumer begin......" % os.getpid())
         try:
             handler = ConsumerHandler(kwargs)
             handler.run(callback_func)
             # logging.getLogger(logger_name).info("pid[%s] run kwargs: %s" % (os.getpid(), kwargs))
         except Exception as e:
-            logging.getLogger(logger_name).error(
-                "pid[%s] setup consumer exception: %s"
-                % (os.getpid(), str(e))
-            )
+            print('=== STEP ERROR INFO START')
+            traceback.print_exc()
+            print('=== STEP ERROR INFO END')
 
         logging.getLogger(logger_name).info("pid[%s] setup consumer end......\n" % os.getpid())
 
