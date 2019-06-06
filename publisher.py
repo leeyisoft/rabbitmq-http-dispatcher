@@ -20,7 +20,7 @@ class Publisher:
 
         exchange_type = option.get('exchange_type', 'fanout')
         exchange = option.get('exchange', 'push_msg')
-        routing_key = option.get('routing_key', 'push_msg')
+        routing_key = option.get('routing_key', '*')
         queue_name = option.get('queue_name', None)
         durable = option.get('durable', True)
         auto_delete = option.get('auto_delete', False)
