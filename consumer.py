@@ -132,7 +132,7 @@ class ConsumerHandler(object):
                 )
                 # logging.getLogger(logger_name).info(callback_func)
                 self.consumer.start_consuming(callback_func=callback_func)
-                time.sleep(4)
+                time.sleep(1)
             except Exception as e:
                 logging.getLogger(logger_name).error(
                     "pid[%s] ERROR: exception happend when start - %s"
