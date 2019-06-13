@@ -17,8 +17,9 @@ import os
 import time
 import pika
 import logging
-
 import traceback
+from pika.exceptions import AMQPConnectionError
+
 from multiprocessing import Pool
 
 
@@ -39,7 +40,9 @@ class Consumer(object):
     def __init__(self, rabbitmq_config):
         """
         """
-        self.connection = pika.BlockingConnection(pika.URLParameters(rabbitmq_config))
+        self.connection = pika.BlockingConnection(
+            pika.URLParameters(rabbitmq_config)
+        )
         self.channel = self.connection.channel()
         self.exchange_name = None
         self.queue_name = None
@@ -47,8 +50,7 @@ class Consumer(object):
     def start_consuming(self, callback_func, auto_ack=False):
         """
         """
-        self.channel.basic_consume(on_message_callback=callback_func
-            , queue=self.queue_name
+        self.channel.basic_consume(self.queue_name, callback_func
             , auto_ack=auto_ack
         )
         self.channel.start_consuming()
@@ -93,55 +95,51 @@ class Consumer(object):
                 , routing_key=rk
             )
 
-
 class ConsumerHandler(object):
     """
     消费者处理hander
     """
-    def __init__(self, kwargs):
+    config = {}
+    rabbitmq_config = ''
+    consumer = None
+
+    def __init__(self, config, rabbitmq_config=None):
         """
         初始化
         """
-        exchange_type = kwargs.get('exchange_type')
-        exchange = kwargs.get('exchange')
-        queue_name = kwargs.get('queue_name')
-        routing_key = kwargs.get('routing_key', '*')
-        durable = kwargs.get('durable', True)
-        auto_delete = kwargs.get('auto_delete', False)
+        self.config = config
+        self.rabbitmq_config = rabbitmq_config if rabbitmq_config else config.get('rabbitmq_config')
 
-        rabbitmq_config = kwargs.get('rabbitmq_config')
+    def init_consumer(self, config):
+        """
+        初始化 consumer
+        """
+        print('init_consumer ', time.time())
+        exchange_type = config.get('exchange_type')
+        exchange = config.get('exchange')
+        queue_name = config.get('queue_name')
+        routing_key = config.get('routing_key', '*')
+        durable = config.get('durable', True)
+        auto_delete = config.get('auto_delete', False)
 
-        logging.getLogger(logger_name).info(
-            f"pid[{os.getpid()}] Init consumer begin......"
-        )
-
-        self.consumer = Consumer(rabbitmq_config)
+        self.consumer = Consumer(self.rabbitmq_config)
         self.consumer.declare_exchange(exchange_type, exchange, durable, auto_delete)
         self.consumer.declare_queue(queue_name, routing_key, durable, auto_delete)
 
-        logging.getLogger(logger_name).info(
-            f"pid[{os.getpid()}] Init consumer end...... "
-        )
-
     def run(self, callback_func):
-        """
-        检查并启动参考 : http://stackoverflow.com/questions/22572922/how-to-start-multiple-pika-workers
-        """
         while True:
             try:
-                logging.getLogger(logger_name).info(
-                    f"pid[{os.getpid()}] Now consumer running, start one "
-                )
-                # logging.getLogger(logger_name).info(callback_func)
+                if self.consumer is None:
+                    self.init_consumer(self.config)
                 self.consumer.start_consuming(callback_func=callback_func)
-                time.sleep(1)
+            except AMQPConnectionError as e:
+                # 设置 self.consumer = None 会重新连接
+                self.consumer = None
             except Exception as e:
-                logging.getLogger(logger_name).error(
-                    f"pid[{os.getpid()}] ERROR: exception happend when start - {e}"
-                )
-                break
-            finally:
-                self.consumer.close()
+                print('=== STEP ERROR INFO START')
+                traceback.print_exc()
+                print('=== STEP ERROR INFO END')
+                raise e
 
 class ConsumerDispatcher():
 
