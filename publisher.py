@@ -15,9 +15,12 @@ class Publisher:
         self.exchange_name = None
         self.queue_name = None
 
+    def publish_fanout(self, message, option):
+        option['exchange_type'] = 'fanout'
+        return self.push(message, option)
+
     def push(self, message, option):
         message = message if type(message)==str else json.dumps(message)
-
         exchange_type = option.get('exchange_type', 'fanout')
         exchange = option.get('exchange', 'push_msg')
         routing_key = option.get('routing_key', '*')
@@ -83,7 +86,7 @@ def _main():
     option['durable'] = True
     option['auto_delete'] = False
     option['exchange_type'] = 'topic'
-    res = pusher.push(msg, option)
+    res = pusher.publish_fanout(msg, option)
     print(res)
 
 if __name__ == '__main__':
